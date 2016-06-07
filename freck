@@ -228,16 +228,15 @@ class Freckle(object):
                 project_name=project_name)
 
         if tags is None: tags = self.config.get("tags")
-        tags_and_description = []
-        if tags: tags_and_description.append(tags)
-        if description: tags_and_description.append(description)
+        hashtags = " ".join(["#{0}".format(tag) for tag in tags.split(",")])
 
         data = {
             "user": user or self.config["user"],
             "minutes": time,
             "project_id": self.projects[project_name],
+            "description": " ".join([hashtags, description]),
+            "allow_hashtags": True,
         }
-        if tags_and_description: data["description"] = ", ".join(tags_and_description)
         if date: data["date"] = date
 
         try:
