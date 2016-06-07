@@ -371,6 +371,7 @@ if __name__ == '__main__':
         freckle.create_entry(time, ", ".join(args[1:]), options.tags,
             options.project, options.date, options.user)
         logging.info("Recorded %s against project %s", time, freckle.proj(options.project))
+        freckle.list_entries()
         sys.exit(0)
 
     # No action appears to have been specified, so let's print a list of today's entries
