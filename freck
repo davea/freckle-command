@@ -8,7 +8,6 @@ import optparse
 import os
 import re
 import sys
-import urllib
 import urllib2
 
 VERSION = "1.1.0" # http://semver.org/
@@ -30,7 +29,6 @@ if sys.version_info < (2, 6):
 # we have checked the Python version.
 import json
 
-
 # A class that encapsulates the config file handling and API calls
 class Freckle(object):
     def __init__(self):
@@ -39,37 +37,37 @@ class Freckle(object):
             subdomain=self.config["subdomain"])
         self._load_projects()
         self._load_tags()
-    
+
     def _generate_config(self):
         """Generate configuration file interactively; called if we don’t have one yet.
         """
         print "Type the subdomain associated with your Freckle account, e.g. mysociety"
         subdomain = raw_input("subdomain: ")
-        
+
         print "Type the email address you used to register with Freckle"
         email = raw_input("email: ")
         if '@' not in email:
             fail("That’s not an email address")
-        
+
         password = getpass.getpass("password: ")
-        
+
         self.url_base = "https://{subdomain}.letsfreckle.com/api/".format(subdomain=subdomain)
         try:
             r = self.api("user", "api_auth_token", user=email, password=password)
-        except urllib2.HTTPError, e:
+        except urllib2.HTTPError:
             fail("Failed to connect to {subdomain}.letsfreckle.com\nCheck your details and try again.",
                 subdomain=subdomain)
         token = r["user"]["api_auth_token"]
-        
+
         self.config = {
             "subdomain": subdomain,
             "user": email,
             "token": token,
         }
-        
+
         self._load_projects()
         self.list_projects()
-        
+
         print "Type your current project. You may leave this blank"
         project = raw_input("project: ")
         if project not in self.projects:
@@ -79,13 +77,13 @@ class Freckle(object):
             print "To create this project, use the --create option next time you run freck."
             print
         self.config["project"] = project
-        
+
         print "Type tags to include by default. You may leave this blank"
         self.config["tags"] = raw_input("tags: ")
         print
-        
+
         self._save_config()
-    
+
     def _load_config(self):
         """Load configuration file.
         """
@@ -96,40 +94,40 @@ class Freckle(object):
             self._generate_config()
             self.just_generated_config = True
             return
-        
+
         self.config = {}
         with open(self.config_file, 'r') as f:
             line_number = 0
             for line in f:
                 line_number += 1
-                
+
                 # Remove comments and leading/trailing whitespace
                 line = re.sub(r"#.*", "", line).strip()
                 if not line: continue
-                
+
                 mo = re.match(r"([^:]+):\s*(.*)", line)
                 if not mo:
                     fail("Syntax error in ~/.freck at line {line_number}: {line}",
                         line_number=line_number, line=line)
                 key = mo.group(1)
                 value = mo.group(2)
-                
+
                 if key not in CONFIG_KEYS:
                     fail("Unrecognised key '{key}' in ~/.freck at line {line_number}",
                         key=key, line_number=line_number)
                 self.config[key] = value
-    
+
     def _save_config(self):
         with open(self.config_file, 'w') as f:
             f.write("".join([
                 "{key}: {value}\n".format(key=key, value=value)
                 for key, value in self.config.items()
             ]))
-        
+
         print "Your settings have been saved in {config_file}".format(
             config_file=self.config_file)
         print "You may change them at any time by editing this file."
-    
+
     def api(self, *path, **kwargs):
         """Make a call to the API.
         """
@@ -141,26 +139,26 @@ class Freckle(object):
                 kwargs["user"] + ":" + kwargs["password"])
         else:
             headers["X-FreckleToken"] = self.config["token"]
-        
+
         logging.debug("Requesting %s with payload %r", url, json_data)
         r = urllib2.urlopen(urllib2.Request(url, json_data, headers))
-        
+
         s = r.read()
         if s.strip() == "": return None
         return json.loads(s)
-    
+
     def _load_projects(self):
         """Load the list of projects.
         """
         if hasattr(self, "projects"):
             # Projects are already loaded
             return
-        
+
         self.projects = {}
         for p in self.api("projects"):
             project = p["project"]
             self.projects[project["name"]] = project["id"]
-    
+
     def proj(self, project_name):
         if project_name is None:
             project_name = self.config.get("project")
@@ -176,13 +174,13 @@ class Freckle(object):
         if project_name in self.projects: return False
         self.api("projects", data={"project": {"name": project_name}})
         return True
-    
+
     def list_projects(self):
         """Print a list of all projects.
         """
         print "Projects for {subdomain}.letsfreckle.com:".format(
             subdomain=self.config["subdomain"])
-        
+
         for project in sorted(self.projects.iterkeys()):
             if project == self.config.get("project"):
                 print "* " + project.encode("utf-8")
@@ -196,7 +194,7 @@ class Freckle(object):
         if hasattr(self, "tags"):
             # Tags are already loaded
             return
-        
+
         self.tags = {}
         for t in self.api("tags"):
             tag = t["tag"]
@@ -207,14 +205,14 @@ class Freckle(object):
         """
         print "Tags for {subdomain}.letsfreckle.com:".format(
             subdomain=self.config["subdomain"])
-        
+
         for tag in self.tags:
             if tag == self.config.get("tag"):
                 print "* " + tag.encode("utf-8")
             else:
                 print "  " + tag.encode("utf-8")
         print
-    
+
     def create_entry(self, time, description=None, tags=None, project_name=None, date=None, user=None):
         """Create a new time-tracking entry.
         """
@@ -224,16 +222,16 @@ class Freckle(object):
                 # The default project does not exist
                 fail("Default project '{project_name}' does not exist.\nEdit ~/.freck to specify one that does.",
                     project_name=project_name)
-            
+
             # Not the default project
             fail("Project '{project_name}' does not exist.\nYou can create it by specifying --create, or list the existing projects by specifying --list-projects.",
                 project_name=project_name)
-        
+
         if tags is None: tags = self.config.get("tags")
         tags_and_description = []
         if tags: tags_and_description.append(tags)
         if description: tags_and_description.append(description)
-        
+
         data = {
             "user": user or self.config["user"],
             "minutes": time,
@@ -241,13 +239,12 @@ class Freckle(object):
         }
         if tags_and_description: data["description"] = ", ".join(tags_and_description)
         if date: data["date"] = date
-        
+
         try:
             self.api("entries", data={"entry": data})
         except urllib2.HTTPError, e:
             fail("Failed to create entry '{time}' for project {project_name}: {message}",
                 time=time, project_name=project_name, message=str(e))
-
 
 # Parse the command line
 parser = optparse.OptionParser(usage="%prog [options] time_spent description/tags ...")
