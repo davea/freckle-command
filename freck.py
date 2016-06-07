@@ -8,11 +8,13 @@ import optparse
 import os
 import re
 import sys
+import urllib
 import urllib2
+from datetime import date
 
 VERSION = "1.1.1-development" # http://semver.org/
 
-CONFIG_KEYS = set([ "subdomain", "user", "token", "project", "tags" ])
+CONFIG_KEYS = set([ "subdomain", "user", "token", "project", "tags", "user_id" ])
 
 # Exit with an error message
 def fail(template, **values):
@@ -62,6 +64,8 @@ class Freckle(object):
             "user": email,
             "token": token,
         }
+        self.config["user_id"] = self.api("users", "self")['user']['id']
+
 
         self.list_projects()
 
@@ -85,11 +89,8 @@ class Freckle(object):
         """Load configuration file.
         """
         self.config_file = os.path.join(os.environ["HOME"], ".freck")
-        if os.path.isfile(self.config_file):
-            self.just_generated_config = False
-        else:
+        if not os.path.isfile(self.config_file):
             self._generate_config()
-            self.just_generated_config = True
             return
 
         self.config = {}
@@ -129,6 +130,8 @@ class Freckle(object):
         """Make a call to the API.
         """
         url = self.url_base + "/".join(path) + ".json"
+        if 'query' in kwargs:
+            url = "?".join([url, urllib.urlencode(kwargs['query'])])
         json_data = None if "data" not in kwargs else json.dumps(kwargs["data"])
         headers = { "Content-Type": "application/json" }
         if "user" in kwargs:
@@ -246,6 +249,49 @@ class Freckle(object):
             fail("Failed to create entry '{time}' for project {project_name}: {message}",
                 time=time, project_name=project_name, message=str(e))
 
+    def list_entries(self, from_date=None, to_date=None, user_id=None):
+        query = {
+            "search[people]": user_id or self.config['user_id'],
+            "search[from]": (from_date or date.today()).isoformat(),
+            "search[to]": (to_date or date.today()).isoformat(),
+        }
+        if from_date is None and to_date is None:
+            print "Today's entries:"
+        elif from_date == to_date:
+            print "Entries on {0}:".format(from_date.isoformat())
+        else:
+            print "Entries {0}-{1}".format(from_date.isoformat(), to_date.isoformat())
+        entries = [entry['entry'] for entry in sorted(self.api("entries", query=query), key=lambda e: e['entry']['created_at'])]
+        max_project_len = max((len(e.get('project', {}).get('name', '-')) for e in entries))
+        max_tags_len = max((len(format_tags(e['tags'])) for e in entries))
+        for entry in entries:
+            time = format_minutes(entry['minutes'])
+            tags = format_tags(entry['tags']).ljust(max_tags_len)
+            description = format_description(entry)
+            project = entry.get('project', {}).get('name', '-').ljust(max_project_len)
+            print "\t".join([time, project, tags, description])
+        print "{0} total".format(format_minutes(sum((e['minutes'] for e in entries))))
+
+def format_minutes(minutes):
+    h = minutes//60
+    m = minutes%60
+    if h == 0:
+        return "{0}m".format(m)
+    elif m == 0:
+        return "{0}h".format(h)
+    else:
+        return "{0}h{1}m".format(h, m)
+
+def format_tags(tags):
+    return " ".join(("#{0}".format(t['name']) for t in tags))
+
+def format_description(entry):
+    tags = [t['name'] for t in entry['tags']]
+    description = entry['description']
+    for tag in tags:
+        description = description.replace(tag, "")
+    return description.lstrip(" ,#*!")
+
 if __name__ == '__main__':
     # Parse the command line
     parser = optparse.OptionParser(usage="%prog [options] time_spent description/tags ...")
@@ -299,26 +345,24 @@ if __name__ == '__main__':
     if options.silent:  log_level = logging.WARN
     logging.basicConfig(level=log_level, format=" * %(message)s")
 
+    freckle = Freckle()
 
     # The main program
     if options.list_projects:
         if args:
             parser.error("Unexpected argument following --list-projects: " + args[0])
-        Freckle().list_projects()
+        freckle.list_projects()
         sys.exit(0)
 
     if options.list_tags:
         if args:
             parser.error("Unexpected argument following --list-tags: " + args[0])
-        Freckle().list_tags()
+        freckle.list_tags()
         sys.exit(0)
 
-    freckle = Freckle()
-    done_something = False
     if options.create:
         if freckle.create_project(options.project):
             logging.info("Created new project: %s", options.project)
-            done_something = True
         else:
             logging.debug("The project %s already exists", options.project)
 
@@ -327,7 +371,7 @@ if __name__ == '__main__':
         freckle.create_entry(time, ", ".join(args[1:]), options.tags,
             options.project, options.date, options.user)
         logging.info("Recorded %s against project %s", time, freckle.proj(options.project))
-        done_something = True
+        sys.exit(0)
 
-    if not done_something and not freckle.just_generated_config:
-        logging.info("Nothing to do. Did you mean to specify a time? Use -h for help.")
+    # No action appears to have been specified, so let's print a list of today's entries
+    freckle.list_entries()
