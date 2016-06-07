@@ -227,9 +227,14 @@ class Freckle(object):
                 fail("Default project '{project_name}' does not exist.\nEdit ~/.freck to specify one that does.",
                     project_name=project_name)
 
-            # Not the default project
-            fail("Project '{project_name}' does not exist.\nYou can create it by specifying --create, or list the existing projects by specifying --list-projects.",
-                project_name=project_name)
+            # Not the default project, try a case-insensitive match
+            matches = [p for p in self.projects if p.lower() == project_name.lower()]
+            if matches:
+                project_name = matches[0]
+            else:
+                # No project matches at all
+                fail("Project '{project_name}' does not exist.\nYou can create it by specifying --create, or list the existing projects by specifying --list-projects.",
+                    project_name=project_name)
 
         if tags is None: tags = self.config.get("tags")
         hashtags = " ".join(["#{0}".format(tag) for tag in tags.split(",")])
@@ -248,6 +253,7 @@ class Freckle(object):
         except urllib2.HTTPError, e:
             fail("Failed to create entry '{time}' for project {project_name}: {message}",
                 time=time, project_name=project_name, message=str(e))
+        logging.info("Recorded %s against project %s", time, project_name)
 
     def list_entries(self, from_date=None, to_date=None, user_id=None):
         query = {
@@ -370,7 +376,6 @@ if __name__ == '__main__':
         time = args[0]
         freckle.create_entry(time, ", ".join(args[1:]), options.tags,
             options.project, options.date, options.user)
-        logging.info("Recorded %s against project %s", time, freckle.proj(options.project))
         freckle.list_entries()
         sys.exit(0)
 
