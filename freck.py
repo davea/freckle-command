@@ -10,7 +10,7 @@ import re
 import sys
 import urllib2
 
-VERSION = "1.1.0" # http://semver.org/
+VERSION = "1.1.1-development" # http://semver.org/
 
 CONFIG_KEYS = set([ "subdomain", "user", "token", "project", "tags" ])
 
@@ -35,8 +35,6 @@ class Freckle(object):
         self._load_config()
         self.url_base = "https://{subdomain}.letsfreckle.com/api/".format(
             subdomain=self.config["subdomain"])
-        self._load_projects()
-        self._load_tags()
 
     def _generate_config(self):
         """Generate configuration file interactively; called if we don’t have one yet.
@@ -65,7 +63,6 @@ class Freckle(object):
             "token": token,
         }
 
-        self._load_projects()
         self.list_projects()
 
         print "Type your current project. You may leave this blank"
@@ -147,17 +144,19 @@ class Freckle(object):
         if s.strip() == "": return None
         return json.loads(s)
 
-    def _load_projects(self):
+    @property
+    def projects(self):
         """Load the list of projects.
         """
-        if hasattr(self, "projects"):
+        if hasattr(self, "_projects"):
             # Projects are already loaded
-            return
+            return self._projects
 
-        self.projects = {}
+        self._projects = {}
         for p in self.api("projects"):
             project = p["project"]
             self.projects[project["name"]] = project["id"]
+        return self._projects
 
     def proj(self, project_name):
         if project_name is None:
@@ -188,17 +187,19 @@ class Freckle(object):
                 print "  " + project.encode("utf-8")
         print
 
-    def _load_tags(self):
+    @property
+    def tags(self):
         """Load the list of tags.
         """
-        if hasattr(self, "tags"):
+        if hasattr(self, "_tags"):
             # Tags are already loaded
-            return
+            return self._tags
 
-        self.tags = {}
+        self._tags = {}
         for t in self.api("tags"):
             tag = t["tag"]
             self.tags[tag["name"]] = tag["id"]
+        return self._tags
 
     def list_tags(self):
         """Print a list of all tags.
