@@ -245,87 +245,88 @@ class Freckle(object):
             fail("Failed to create entry '{time}' for project {project_name}: {message}",
                 time=time, project_name=project_name, message=str(e))
 
-# Parse the command line
-parser = optparse.OptionParser(usage="%prog [options] time_spent description/tags ...")
-parser.add_option("", "--version",
-                action="store_true",
-                help="print version number and exit")
+if __name__ == '__main__':
+    # Parse the command line
+    parser = optparse.OptionParser(usage="%prog [options] time_spent description/tags ...")
+    parser.add_option("", "--version",
+                    action="store_true",
+                    help="print version number and exit")
 
-parser.add_option("-l", "--list-projects",
-                action="store_true",
-                help="list all available projects")
+    parser.add_option("-l", "--list-projects",
+                    action="store_true",
+                    help="list all available projects")
 
-parser.add_option("-L", "--list-tags",
-                action="store_true",
-                help="list all available tags")
+    parser.add_option("-L", "--list-tags",
+                    action="store_true",
+                    help="list all available tags")
 
-parser.add_option("-t", "--tags",
-                action="store",
-                help="additional tags, overriding the default if any")
-parser.add_option("-d", "--date",
-                action="store",
-                help="the date this task was done, if not today: yyyy-mm-dd")
-parser.add_option("-u", "--user",
-                action="store",
-                help="email address of user to record time for, if not you")
+    parser.add_option("-t", "--tags",
+                    action="store",
+                    help="additional tags, overriding the default if any")
+    parser.add_option("-d", "--date",
+                    action="store",
+                    help="the date this task was done, if not today: yyyy-mm-dd")
+    parser.add_option("-u", "--user",
+                    action="store",
+                    help="email address of user to record time for, if not you")
 
-parser.add_option("-p", "--project",
-                action="store",
-                help="the name of the project. If you have specified a default you can miss this out")
-parser.add_option("-c", "--create",
-                action="store_true",
-                help="create the project if it does not exist")
+    parser.add_option("-p", "--project",
+                    action="store",
+                    help="the name of the project. If you have specified a default you can miss this out")
+    parser.add_option("-c", "--create",
+                    action="store_true",
+                    help="create the project if it does not exist")
 
-parser.add_option("-v", "--verbose",
-                action="store_true",
-                help="print detailed logging messages")
-parser.add_option("-s", "--silent",
-                action="store_true",
-                help="print no informational messages")
+    parser.add_option("-v", "--verbose",
+                    action="store_true",
+                    help="print detailed logging messages")
+    parser.add_option("-s", "--silent",
+                    action="store_true",
+                    help="print no informational messages")
 
-(options, args) = parser.parse_args()
+    (options, args) = parser.parse_args()
 
-if options.version:
-    print VERSION
-    sys.exit(0)
+    if options.version:
+        print VERSION
+        sys.exit(0)
 
-# Configure logging
-if options.verbose and options.silent:
-    parser.error("Cannot specify both --verbose and --silent")
-log_level = logging.INFO
-if options.verbose: log_level = logging.DEBUG
-if options.silent:  log_level = logging.WARN
-logging.basicConfig(level=log_level, format=" * %(message)s")
+    # Configure logging
+    if options.verbose and options.silent:
+        parser.error("Cannot specify both --verbose and --silent")
+    log_level = logging.INFO
+    if options.verbose: log_level = logging.DEBUG
+    if options.silent:  log_level = logging.WARN
+    logging.basicConfig(level=log_level, format=" * %(message)s")
 
 
-# The main program
-if options.list_projects:
+    # The main program
+    if options.list_projects:
+        if args:
+            parser.error("Unexpected argument following --list-projects: " + args[0])
+        Freckle().list_projects()
+        sys.exit(0)
+
+    if options.list_tags:
+        if args:
+            parser.error("Unexpected argument following --list-tags: " + args[0])
+        Freckle().list_tags()
+        sys.exit(0)
+
+    freckle = Freckle()
+    done_something = False
+    if options.create:
+        if freckle.create_project(options.project):
+            logging.info("Created new project: %s", options.project)
+            done_something = True
+        else:
+            logging.debug("The project %s already exists", options.project)
+
     if args:
-        parser.error("Unexpected argument following --list-projects: " + args[0])
-    Freckle().list_projects()
-    sys.exit(0)
-
-if options.list_tags:
-    if args:
-        parser.error("Unexpected argument following --list-tags: " + args[0])
-    Freckle().list_tags()
-    sys.exit(0)
-
-freckle = Freckle()
-done_something = False
-if options.create:
-    if freckle.create_project(options.project):
-        logging.info("Created new project: %s", options.project)
+        time = args[0]
+        freckle.create_entry(time, ", ".join(args[1:]), options.tags,
+            options.project, options.date, options.user)
+        logging.info("Recorded %s against project %s", time, freckle.proj(options.project))
         done_something = True
-    else:
-        logging.debug("The project %s already exists", options.project)
 
-if args:
-    time = args[0]
-    freckle.create_entry(time, ", ".join(args[1:]), options.tags,
-        options.project, options.date, options.user)
-    logging.info("Recorded %s against project %s", time, freckle.proj(options.project))
-    done_something = True
-
-if not done_something and not freckle.just_generated_config:
-    logging.info("Nothing to do. Did you mean to specify a time? Use -h for help.")
+    if not done_something and not freckle.just_generated_config:
+        logging.info("Nothing to do. Did you mean to specify a time? Use -h for help.")
