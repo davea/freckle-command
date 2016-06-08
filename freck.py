@@ -10,7 +10,7 @@ import re
 import sys
 import urllib
 import urllib2
-from datetime import date
+from datetime import date, timedelta, datetime
 
 VERSION = "1.1.1-development" # http://semver.org/
 
@@ -268,14 +268,15 @@ class Freckle(object):
         else:
             print "Entries {0}-{1}".format(from_date.isoformat(), to_date.isoformat())
         entries = [entry['entry'] for entry in sorted(self.api("entries", query=query), key=lambda e: e['entry']['created_at'])]
-        max_project_len = max((len(e.get('project', {}).get('name', '-')) for e in entries))
-        max_tags_len = max((len(format_tags(e['tags'])) for e in entries))
-        for entry in entries:
-            time = format_minutes(entry['minutes'])
-            tags = format_tags(entry['tags']).ljust(max_tags_len)
-            description = format_description(entry)
-            project = entry.get('project', {}).get('name', '-').ljust(max_project_len)
-            print "\t".join([time, project, tags, description])
+        if entries:
+            max_project_len = max((len(e.get('project', {}).get('name', '-')) for e in entries))
+            max_tags_len = max((len(format_tags(e['tags'])) for e in entries))
+            for entry in entries:
+                time = format_minutes(entry['minutes'])
+                tags = format_tags(entry['tags']).ljust(max_tags_len)
+                description = format_description(entry)
+                project = entry.get('project', {}).get('name', '-').ljust(max_project_len)
+                print "\t".join([time, project, tags, description])
         print "{0} total".format(format_minutes(sum((e['minutes'] for e in entries))))
 
 def format_minutes(minutes):
@@ -312,6 +313,10 @@ if __name__ == '__main__':
     parser.add_option("-L", "--list-tags",
                     action="store_true",
                     help="list all available tags")
+
+    parser.add_option("-e", "--list-entries",
+                    action="store",
+                    help="list all entries for a date. Format yyyy-mm-dd, 'yesterday', 'today'")
 
     parser.add_option("-t", "--tags",
                     action="store",
@@ -364,6 +369,20 @@ if __name__ == '__main__':
         if args:
             parser.error("Unexpected argument following --list-tags: " + args[0])
         freckle.list_tags()
+        sys.exit(0)
+
+    if options.list_entries:
+        day = options.list_entries
+        if day == 'today':
+            from_date = to_date = date.today()
+        elif day == 'yesterday':
+            from_date = to_date = date.today() - timedelta(days=1)
+        else:
+            try:
+                from_date = to_date = datetime.strptime(day, "%Y-%m-%d").date()
+            except ValueError:
+                fail("Invalid date. Please use format yyyy-mm-dd.")
+        freckle.list_entries(from_date, to_date)
         sys.exit(0)
 
     if options.create:
