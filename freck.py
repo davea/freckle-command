@@ -276,8 +276,8 @@ class Freckle(object):
                 tags = format_tags(entry['tags']).ljust(max_tags_len)
                 description = format_description(entry)
                 project = entry.get('project', {}).get('name', '-').ljust(max_project_len)
-                print "\t".join([time, project, tags, description])
-        print "{0} total".format(format_minutes(sum((e['minutes'] for e in entries))))
+                print u"\t".join([time, project, tags, description])
+        print u"{0} total".format(format_minutes(sum((e['minutes'] for e in entries))))
 
 def format_minutes(minutes):
     h = minutes//60
@@ -286,6 +286,8 @@ def format_minutes(minutes):
         return "{0}m".format(m)
     elif m == 0:
         return "{0}h".format(h)
+    elif m == 30:
+        return u"{0}½h".format(h)
     else:
         return "{0}h{1}m".format(h, m)
 
@@ -395,7 +397,11 @@ if __name__ == '__main__':
         time = args[0]
         freckle.create_entry(time, ", ".join(args[1:]), options.tags,
             options.project, options.date, options.user)
-        freckle.list_entries()
+        if options.date:
+            from_date = to_date = datetime.strptime(options.date, "%Y-%m-%d").date()
+            freckle.list_entries(from_date, to_date)
+        else:
+            freckle.list_entries()
         sys.exit(0)
 
     # No action appears to have been specified, so let's print a list of today's entries
